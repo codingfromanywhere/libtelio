@@ -1919,7 +1919,7 @@ mod tests {
             telio_set_meshnet(&telio_dev, cfg.as_ptr()),
             TELIO_RES_BAD_CONFIG
         );
-        let cfg = CString::new("a".repeat(MAX_CONFIG_LENGTH + 2)).unwrap();
+        let cfg = CString::new("a".repeat(MAX_CONFIG_LENGTH + 1)).unwrap();
         assert_eq!(
             telio_set_meshnet(&telio_dev, cfg.as_ptr()),
             TELIO_RES_INVALID_STRING

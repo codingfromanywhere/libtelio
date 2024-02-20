@@ -1,5 +1,8 @@
-use std::{borrow::Borrow, collections::hash_map::Entry, mem, time::Duration};
+#![allow(missing_docs)]
 
+use std::{borrow::Borrow, collections::hash_map::Entry, mem, sync::Arc, time::Duration};
+
+use async_trait::async_trait;
 use tokio::{sync::Mutex, time::Instant};
 
 use serde::{ser::SerializeTuple, Serialize};
@@ -195,18 +198,45 @@ pub struct ConnectivityDataAggregator<W: WireGuard> {
     aggregate_relay_events: bool,
     aggregate_nat_traversal_events: bool,
 
-    wg_interface: W,
+    wg_interface: Arc<W>,
 }
 
+#[derive(Default)]
 pub struct AggregatorCollectedSegments {
     pub relay: Vec<ConnectionSegmentData>,
     pub peer: Vec<ConnectionSegmentData>,
 }
 
+#[async_trait]
+pub trait ConnectivityAggregator: Send + Sync {
+    async fn change_peer_state_direct(
+        &mut self,
+        event: AnalyticsEvent,
+        initiator_ep: EndpointProvider,
+        responder_ep: EndpointProvider,
+    );
+
+    async fn change_peer_state_relayed(&mut self, event: AnalyticsEvent);
+
+    async fn change_relay_state(
+        &mut self,
+        event: AnalyticsEvent,
+        reason: RelayConnectionChangeReason,
+    );
+
+    async fn collect_unacknowledged_segments(
+        &self,
+        force_close: bool,
+    ) -> AggregatorCollectedSegments;
+}
+
 impl<W: WireGuard> ConnectivityDataAggregator<W> {
     // Create a new DataConnectivityAggregator instance
     #[allow(dead_code)]
-    pub fn new(nurse_features: &FeatureNurse, wg_interface: W) -> ConnectivityDataAggregator<W> {
+    pub fn new(
+        nurse_features: &FeatureNurse,
+        wg_interface: Arc<W>,
+    ) -> ConnectivityDataAggregator<W> {
         ConnectivityDataAggregator {
             data: Mutex::new(AggregatorData {
                 current_relay_event: None,
@@ -220,35 +250,6 @@ impl<W: WireGuard> ConnectivityDataAggregator<W> {
                 .unwrap_or(false),
             wg_interface,
         }
-    }
-
-    #[allow(dead_code)]
-    pub async fn change_peer_state_direct(
-        &mut self,
-        event: AnalyticsEvent,
-        initiator_ep: EndpointProvider,
-        responder_ep: EndpointProvider,
-    ) {
-        self.change_peer_state_common(
-            event,
-            PeerEndpointTypes {
-                initiator_ep: initiator_ep.into(),
-                responder_ep: responder_ep.into(),
-            },
-        )
-        .await
-    }
-
-    #[allow(dead_code)]
-    pub async fn change_peer_state_relayed(&mut self, event: AnalyticsEvent) {
-        self.change_peer_state_common(
-            event,
-            PeerEndpointTypes {
-                initiator_ep: EndpointType::Relay,
-                responder_ep: EndpointType::Relay,
-            },
-        )
-        .await
     }
 
     async fn change_peer_state_common(
@@ -287,9 +288,41 @@ impl<W: WireGuard> ConnectivityDataAggregator<W> {
 
         data_guard.peer_segments.extend(new_segment);
     }
+}
+
+#[async_trait]
+impl<W: WireGuard> ConnectivityAggregator for ConnectivityDataAggregator<W> {
+    #[allow(dead_code)]
+    async fn change_peer_state_direct(
+        &mut self,
+        event: AnalyticsEvent,
+        initiator_ep: EndpointProvider,
+        responder_ep: EndpointProvider,
+    ) {
+        self.change_peer_state_common(
+            event,
+            PeerEndpointTypes {
+                initiator_ep: initiator_ep.into(),
+                responder_ep: responder_ep.into(),
+            },
+        )
+        .await
+    }
 
     #[allow(dead_code)]
-    pub async fn change_relay_state(
+    async fn change_peer_state_relayed(&mut self, event: AnalyticsEvent) {
+        self.change_peer_state_common(
+            event,
+            PeerEndpointTypes {
+                initiator_ep: EndpointType::Relay,
+                responder_ep: EndpointType::Relay,
+            },
+        )
+        .await
+    }
+
+    #[allow(dead_code)]
+    async fn change_relay_state(
         &mut self,
         event: AnalyticsEvent,
         reason: RelayConnectionChangeReason,
@@ -323,7 +356,7 @@ impl<W: WireGuard> ConnectivityDataAggregator<W> {
     }
 
     #[allow(dead_code)]
-    pub async fn collect_unacknowledged_segments(
+    async fn collect_unacknowledged_segments(
         &self,
         force_close: bool,
     ) -> AggregatorCollectedSegments {
@@ -393,9 +426,7 @@ impl<W: WireGuard> ConnectivityDataAggregator<W> {
             data_guard.current_peer_events.clear();
         }
 
-        data_guard
-            .peer_segments
-            .extend(new_peer_segments.into_iter());
+        data_guard.peer_segments.extend(new_peer_segments);
         data_guard
             .peer_segments
             .sort_by(|a, b| a.start.cmp(&b.start));
@@ -404,6 +435,35 @@ impl<W: WireGuard> ConnectivityDataAggregator<W> {
             relay: mem::take(&mut data_guard.relay_segments),
             peer: mem::take(&mut data_guard.peer_segments),
         }
+    }
+}
+
+pub struct NopConnectivityAggregator;
+
+#[async_trait]
+impl ConnectivityAggregator for NopConnectivityAggregator {
+    async fn change_peer_state_direct(
+        &mut self,
+        _event: AnalyticsEvent,
+        _initiator_ep: EndpointProvider,
+        _responder_ep: EndpointProvider,
+    ) {
+    }
+
+    async fn change_peer_state_relayed(&mut self, _event: AnalyticsEvent) {}
+
+    async fn change_relay_state(
+        &mut self,
+        _event: AnalyticsEvent,
+        _reason: RelayConnectionChangeReason,
+    ) {
+    }
+
+    async fn collect_unacknowledged_segments(
+        &self,
+        _force_close: bool,
+    ) -> AggregatorCollectedSegments {
+        Default::default()
     }
 }
 
@@ -436,7 +496,7 @@ mod tests {
             enable_nat_traversal_conn_data: Some(enable_nat_traversal_conn_data),
         };
 
-        ConnectivityDataAggregator::new(&nurse_features, wg_interface)
+        ConnectivityDataAggregator::new(&nurse_features, Arc::new(wg_interface))
     }
 
     fn create_basic_event(n: u8) -> AnalyticsEvent {

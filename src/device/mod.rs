@@ -31,7 +31,9 @@ use telio_traversal::{
 use telio_sockets::native;
 
 use telio_nurse::{
-    config::Config as NurseConfig, data::MeshConfigUpdateEvent,
+    aggregator::{ConnectivityAggregator, ConnectivityDataAggregator, NopConnectivityAggregator},
+    config::Config as NurseConfig,
+    data::MeshConfigUpdateEvent,
     MeshnetEntities as NurseMeshnetEntities, Nurse, NurseIo,
 };
 use telio_wg as wg;
@@ -241,6 +243,9 @@ pub struct Entities {
     nurse: Option<Arc<Nurse>>,
 
     postquantum_wg: Option<telio_pq::Entity>,
+
+    #[allow(dead_code)]
+    connectivity_aggregator: Arc<dyn ConnectivityAggregator>,
 }
 
 impl Entities {
@@ -1004,6 +1009,15 @@ impl Runtime {
 
         let mut polling_interval = interval_at(tokio::time::Instant::now(), Duration::from_secs(5));
         polling_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let connectivity_aggregator: Arc<dyn ConnectivityAggregator> =
+            if let Some(nurse_features) = &features.nurse {
+                Arc::new(ConnectivityDataAggregator::new(
+                    nurse_features,
+                    wireguard_interface.clone(),
+                ))
+            } else {
+                Arc::new(NopConnectivityAggregator)
+            };
 
         Ok(Runtime {
             features,
@@ -1016,6 +1030,7 @@ impl Runtime {
                 socket_pool,
                 nurse,
                 postquantum_wg,
+                connectivity_aggregator,
             },
             event_listeners: EventListeners {
                 wg_endpoint_publish_event_subscriber: wg_endpoint_publish_events.rx,
