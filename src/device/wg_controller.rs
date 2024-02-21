@@ -10,9 +10,10 @@ use telio_crypto::PublicKey;
 use telio_dns::DnsResolver;
 use telio_firewall::firewall::{Firewall, FILE_SEND_PORT};
 use telio_model::api_config::Features;
-use telio_model::mesh::NodeState::Connected;
+use telio_model::mesh::NodeState::{self, Connected};
 use telio_model::EndpointMap;
 use telio_model::SocketAddr;
+use telio_nurse::aggregator::ConnectivityAggregator;
 use telio_proto::PeersStatesMap;
 use telio_proxy::Proxy;
 use telio_traversal::{
@@ -22,10 +23,12 @@ use telio_traversal::{
     },
     SessionKeeperTrait, UpgradeSyncTrait, WireGuardEndpointCandidateChangeEvent,
 };
-use telio_utils::{telio_log_debug, telio_log_info, telio_log_warn};
+use telio_utils::{dual_target, telio_log_debug, telio_log_info, telio_log_warn};
+use telio_wg::uapi::AnalyticsEvent;
 use telio_wg::{uapi::Peer, WireGuard};
 use thiserror::Error as TError;
 use tokio::sync::Mutex;
+use tokio::time::Instant;
 
 pub const DEFAULT_PEER_UPGRADE_WINDOW: u64 = 15;
 
@@ -89,6 +92,7 @@ pub async fn consolidate_wg_state(
                 .and_then(|direct| direct.upnp_endpoint_provider.as_ref())
         }),
         entities.postquantum_wg.as_ref(),
+        &*entities.connectivity_aggregator,
         features,
     )
     .await?;
@@ -148,6 +152,7 @@ async fn consolidate_wg_peers<
     stun_ep_provider: Option<&Arc<StunEndpointProvider>>,
     upnp_ep_provider: Option<&Arc<UpnpEndpointProvider>>,
     post_quantum_vpn: Option<&telio_pq::Entity>,
+    connectivity_aggregator: &dyn ConnectivityAggregator,
     features: &Features,
 ) -> Result {
     let proxy_endpoints = if let Some(p) = proxy {
@@ -198,6 +203,38 @@ async fn consolidate_wg_peers<
         }
 
         // TODO: new key - start a new connectivity agregator segment for it.
+        let mut target = (None, None);
+        for net in &peer.peer.allowed_ips {
+            match net {
+                IpNetwork::V4(net4) => {
+                    if net4.prefix() == 32 && target.0.is_none() {
+                        target.0 = Some(net4.ip());
+                    }
+                }
+                IpNetwork::V6(net6) => {
+                    if net6.prefix() == 128 && target.1.is_none() {
+                        target.1 = Some(net6.ip());
+                    }
+                }
+            }
+        }
+        let endpoint = match dual_target::DualTarget::new(target) {
+            Ok(dt) => dt,
+            Err(_) => continue,
+        };
+        let tx_bytes = peer.peer.tx_bytes.unwrap_or_default();
+        let rx_bytes = peer.peer.rx_bytes.unwrap_or_default();
+        let event = AnalyticsEvent {
+            public_key: *key,
+            endpoint,
+            tx_bytes,
+            rx_bytes,
+            peer_state: peer.peer.state(),
+            timestamp: Instant::now().into_std(),
+        };
+        connectivity_aggregator
+            .change_peer_state_relayed(event)
+            .await;
     }
 
     let mut is_any_peer_eligible_for_upgrade = false;

@@ -12,7 +12,7 @@ use telio_model::{
     api_config::{EndpointProvider, FeatureNurse},
     HashMap,
 };
-use telio_utils::telio_log_warn;
+use telio_utils::{telio_log_info, telio_log_warn};
 use telio_wg::{
     uapi::{AnalyticsEvent, PeerState},
     WireGuard,
@@ -210,19 +210,15 @@ pub struct AggregatorCollectedSegments {
 #[async_trait]
 pub trait ConnectivityAggregator: Send + Sync {
     async fn change_peer_state_direct(
-        &mut self,
+        &self,
         event: AnalyticsEvent,
         initiator_ep: EndpointProvider,
         responder_ep: EndpointProvider,
     );
 
-    async fn change_peer_state_relayed(&mut self, event: AnalyticsEvent);
+    async fn change_peer_state_relayed(&self, event: AnalyticsEvent);
 
-    async fn change_relay_state(
-        &mut self,
-        event: AnalyticsEvent,
-        reason: RelayConnectionChangeReason,
-    );
+    async fn change_relay_state(&self, event: AnalyticsEvent, reason: RelayConnectionChangeReason);
 
     async fn collect_unacknowledged_segments(
         &self,
@@ -252,11 +248,8 @@ impl<W: WireGuard> ConnectivityDataAggregator<W> {
         }
     }
 
-    async fn change_peer_state_common(
-        &mut self,
-        event: AnalyticsEvent,
-        endpoints: PeerEndpointTypes,
-    ) {
+    async fn change_peer_state_common(&self, event: AnalyticsEvent, endpoints: PeerEndpointTypes) {
+        telio_log_info!("change_peer_state_common: event: {event:?}, endpoints: {endpoints:?}");
         if !self.aggregate_nat_traversal_events {
             return;
         }
@@ -294,7 +287,7 @@ impl<W: WireGuard> ConnectivityDataAggregator<W> {
 impl<W: WireGuard> ConnectivityAggregator for ConnectivityDataAggregator<W> {
     #[allow(dead_code)]
     async fn change_peer_state_direct(
-        &mut self,
+        &self,
         event: AnalyticsEvent,
         initiator_ep: EndpointProvider,
         responder_ep: EndpointProvider,
@@ -310,7 +303,7 @@ impl<W: WireGuard> ConnectivityAggregator for ConnectivityDataAggregator<W> {
     }
 
     #[allow(dead_code)]
-    async fn change_peer_state_relayed(&mut self, event: AnalyticsEvent) {
+    async fn change_peer_state_relayed(&self, event: AnalyticsEvent) {
         self.change_peer_state_common(
             event,
             PeerEndpointTypes {
@@ -322,11 +315,7 @@ impl<W: WireGuard> ConnectivityAggregator for ConnectivityDataAggregator<W> {
     }
 
     #[allow(dead_code)]
-    async fn change_relay_state(
-        &mut self,
-        event: AnalyticsEvent,
-        reason: RelayConnectionChangeReason,
-    ) {
+    async fn change_relay_state(&self, event: AnalyticsEvent, reason: RelayConnectionChangeReason) {
         if !self.aggregate_relay_events {
             return;
         }
@@ -443,17 +432,17 @@ pub struct NopConnectivityAggregator;
 #[async_trait]
 impl ConnectivityAggregator for NopConnectivityAggregator {
     async fn change_peer_state_direct(
-        &mut self,
+        &self,
         _event: AnalyticsEvent,
         _initiator_ep: EndpointProvider,
         _responder_ep: EndpointProvider,
     ) {
     }
 
-    async fn change_peer_state_relayed(&mut self, _event: AnalyticsEvent) {}
+    async fn change_peer_state_relayed(&self, _event: AnalyticsEvent) {}
 
     async fn change_relay_state(
-        &mut self,
+        &self,
         _event: AnalyticsEvent,
         _reason: RelayConnectionChangeReason,
     ) {
@@ -516,7 +505,7 @@ mod tests {
         wg_interface
             .expect_get_interface()
             .returning(|| Ok(Default::default()));
-        let mut aggregator = create_aggregator(true, false, wg_interface).await;
+        let aggregator = create_aggregator(true, false, wg_interface).await;
 
         // Initial event
         let mut current_relay_event = create_basic_event(1);
@@ -651,7 +640,7 @@ mod tests {
         wg_interface
             .expect_get_interface()
             .returning(|| Ok(Default::default()));
-        let mut aggregator = create_aggregator(false, false, wg_interface).await;
+        let aggregator = create_aggregator(false, false, wg_interface).await;
 
         // Initial event
         let mut current_peer_event = create_basic_event(1);
@@ -682,7 +671,7 @@ mod tests {
         wg_interface
             .expect_get_interface()
             .returning(|| Ok(Default::default()));
-        let mut aggregator = create_aggregator(false, true, wg_interface).await;
+        let aggregator = create_aggregator(false, true, wg_interface).await;
 
         // Initial event
         let mut current_peer_event = create_basic_event(1);
@@ -779,7 +768,7 @@ mod tests {
                 ..Default::default()
             })
         });
-        let mut aggregator = create_aggregator(false, true, wg_interface).await;
+        let aggregator = create_aggregator(false, true, wg_interface).await;
 
         // Insert the first event
         aggregator
@@ -850,7 +839,7 @@ mod tests {
         wg_interface
             .expect_get_interface()
             .returning(move || Ok(Default::default()));
-        let mut aggregator = create_aggregator(true, false, wg_interface).await;
+        let aggregator = create_aggregator(true, false, wg_interface).await;
 
         aggregator
             .change_relay_state(
@@ -952,7 +941,7 @@ mod tests {
                 ..Default::default()
             })
         });
-        let mut aggregator = create_aggregator(true, true, wg_interface).await;
+        let aggregator = create_aggregator(true, true, wg_interface).await;
 
         aggregator
             .change_relay_state(
