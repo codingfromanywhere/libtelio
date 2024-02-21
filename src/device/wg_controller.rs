@@ -196,6 +196,8 @@ async fn consolidate_wg_peers<
                 }
             }
         }
+
+        // TODO: new key - start a new connectivity agregator segment for it.
     }
 
     let mut is_any_peer_eligible_for_upgrade = false;
@@ -237,6 +239,8 @@ async fn consolidate_wg_peers<
                 if let Some(p) = proxy {
                     p.mute_peer(requested_peer.peer.public_key, None).await?;
                 }
+
+                // TODO: end current segment and start a relay segment
             }
 
             (true, false) => {
@@ -299,6 +303,8 @@ async fn consolidate_wg_peers<
                     )
                     .await?;
                 }
+
+                // TODO: end relay segment and start new 'direct' segment
             }
 
             (_, _) => {}
