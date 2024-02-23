@@ -446,6 +446,8 @@ impl<E: Backoff> State<E> {
 
                 // Store freshly created connectivity check session
                 telio_log_debug!("New session created: {:?} -> {:?}", session_id, session);
+                telio_log_debug!("XXX: old_endpoints: {old_endpoints:?}");
+                telio_log_debug!("XXX: new_endopints: {new_endpoints:?}");
                 self.endpoint_connectivity_check_state
                     .insert(session_id, session);
             }
@@ -1432,7 +1434,6 @@ mod tests {
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)), 8080),
             last_rx_time_provider_mock.clone(),
         );
-        let pk = endpoint_connectivity_check_state.public_key;
         last_rx_time_provider_mock
             .lock()
             .await

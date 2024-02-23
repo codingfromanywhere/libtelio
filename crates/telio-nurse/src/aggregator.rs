@@ -249,7 +249,9 @@ impl<W: WireGuard> ConnectivityDataAggregator<W> {
     }
 
     async fn change_peer_state_common(&self, event: AnalyticsEvent, endpoints: PeerEndpointTypes) {
-        telio_log_info!("change_peer_state_common: event: {event:?}, endpoints: {endpoints:?}");
+        telio_log_info!(
+            "XXX: change_peer_state_common: event: {event:?}, endpoints: {endpoints:?}"
+        );
         if !self.aggregate_nat_traversal_events {
             return;
         }

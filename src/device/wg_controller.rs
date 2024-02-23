@@ -201,40 +201,6 @@ async fn consolidate_wg_peers<
                 }
             }
         }
-
-        // TODO: new key - start a new connectivity agregator segment for it.
-        let mut target = (None, None);
-        for net in &peer.peer.allowed_ips {
-            match net {
-                IpNetwork::V4(net4) => {
-                    if net4.prefix() == 32 && target.0.is_none() {
-                        target.0 = Some(net4.ip());
-                    }
-                }
-                IpNetwork::V6(net6) => {
-                    if net6.prefix() == 128 && target.1.is_none() {
-                        target.1 = Some(net6.ip());
-                    }
-                }
-            }
-        }
-        let endpoint = match dual_target::DualTarget::new(target) {
-            Ok(dt) => dt,
-            Err(_) => continue,
-        };
-        let tx_bytes = peer.peer.tx_bytes.unwrap_or_default();
-        let rx_bytes = peer.peer.rx_bytes.unwrap_or_default();
-        let event = AnalyticsEvent {
-            public_key: *key,
-            endpoint,
-            tx_bytes,
-            rx_bytes,
-            peer_state: peer.peer.state(),
-            timestamp: Instant::now().into_std(),
-        };
-        connectivity_aggregator
-            .change_peer_state_relayed(event)
-            .await;
     }
 
     let mut is_any_peer_eligible_for_upgrade = false;
@@ -255,6 +221,16 @@ async fn consolidate_wg_peers<
                 .add_peer(requested_peer.peer.clone())
                 .await?;
         }
+
+        telio_log_info!(
+            "XXX: actual_peer: {actual_peer:?}, {:?}",
+            actual_peer.state()
+        );
+        telio_log_info!(
+            "XXX: requested peer: {:?}, {:?}",
+            requested_peer.peer,
+            requested_peer.peer.state()
+        );
 
         let is_actual_peer_proxying = is_peer_proxying(actual_peer, &proxy_endpoints);
         match (
@@ -278,6 +254,7 @@ async fn consolidate_wg_peers<
                 }
 
                 // TODO: end current segment and start a relay segment
+                telio_log_info!("XXX: downgrade!")
             }
 
             (true, false) => {
@@ -347,12 +324,52 @@ async fn consolidate_wg_peers<
             (_, _) => {}
         }
         telio_log_debug!(
-            "peer {:?} proxying: {:?}, state: {:?}, lh: {:?}",
+            "peer {:?} proxying: {:?} (requested: {:?}), state: {:?}, lh: {:?}",
             actual_peer.public_key,
             is_actual_peer_proxying,
+            is_peer_proxying(&requested_peer.peer, &proxy_endpoints),
             actual_peer.state(),
             actual_peer.time_since_last_handshake
         );
+        if is_actual_peer_proxying {
+            // TODO: new key - start a new connectivity agregator segment for it.
+            let mut target = (None, None);
+            for net in &actual_peer.allowed_ips {
+                match net {
+                    IpNetwork::V4(net4) => {
+                        if net4.prefix() == 32 && target.0.is_none() {
+                            target.0 = Some(net4.ip());
+                        }
+                    }
+                    IpNetwork::V6(net6) => {
+                        if net6.prefix() == 128 && target.1.is_none() {
+                            target.1 = Some(net6.ip());
+                        }
+                    }
+                }
+            }
+            let endpoint = match dual_target::DualTarget::new(target) {
+                Ok(dt) => dt,
+                Err(_) => continue,
+            };
+            let tx_bytes = actual_peer.tx_bytes.unwrap_or_default();
+            let rx_bytes = actual_peer.rx_bytes.unwrap_or_default();
+            let event = AnalyticsEvent {
+                public_key: *key,
+                endpoint,
+                tx_bytes,
+                rx_bytes,
+                peer_state: actual_peer.state(),
+                timestamp: Instant::now().into_std(),
+            };
+            telio_log_info!("XXX: Will call agregator with event: {event:?}");
+            connectivity_aggregator
+                .change_peer_state_relayed(event)
+                .await;
+        } else {
+            telio_log_info!("Should call with a direct kind for peer: {key:?}");
+        }
+
         if is_actual_peer_proxying && actual_peer.state() == Connected {
             is_any_peer_eligible_for_upgrade = true;
         }

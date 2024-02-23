@@ -348,7 +348,6 @@ async def test_direct_short_connection_loss(
 
 
 @pytest.mark.asyncio
-@pytest.mark.long
 @pytest.mark.parametrize("setup_params, reflexive_ip", UHP_WORKING_PATHS)
 async def test_direct_connection_loss_for_infinity(
     setup_params: List[SetupParameters], reflexive_ip: str
