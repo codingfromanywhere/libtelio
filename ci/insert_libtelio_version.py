@@ -1,0 +1,62 @@
+#!/usr/bin/python3
+
+import argparse
+import os
+import replace_string
+import sys
+from build_libtelio import LIBTELIO_CONFIG, PROJECT_CONFIG, PROJECT_ROOT
+from rust_build_utils.rust_utils_config import GLOBAL_CONFIG
+
+VERSION_PLACEHOLDER = "VERSION_PLACEHOLDER@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
+
+
+def insert_version_to_libtelio_binaries_in_dir(new_version: str, path: str):
+    print(path)
+    if not os.path.exists(path):
+        raise ValueError("Directory does not exist")
+
+    for target_os, os_config in LIBTELIO_CONFIG.items():
+        packages = [
+            list(package.values())[0]
+            for package in list(os_config.get("packages", {}).values())
+        ]
+        for dirname, _, filenames in os.walk(path):
+            for filename in filenames:
+                full_path = os.path.join(dirname, filename)
+                if target_os in full_path and filename in packages:
+                    binary = os.path.join(dirname, filename)
+                    print(f"{target_os}:{binary}")
+                    replace_string.replace_string_in_file(
+                        binary, VERSION_PLACEHOLDER, new_version
+                    )
+
+
+def main(args):
+    try:
+        insert_version_to_libtelio_binaries_in_dir(
+            args.new_version[0 : len(VERSION_PLACEHOLDER)], args.path
+        )
+        print("Insert successful!")
+        return 0
+    except ValueError as e:
+        print(f"Error: {e}")
+        return 1
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-n",
+        "--new_version",
+        type=str,
+        required=True,
+        help="New libtelio version to insert",
+    )
+    parser.add_argument(
+        "-p",
+        "--path",
+        type=str,
+        required=True,
+        help="Path where to search for libtelio binaries",
+    )
+    sys.exit(main(parser.parse_args()))
