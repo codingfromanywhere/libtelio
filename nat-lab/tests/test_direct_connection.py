@@ -269,6 +269,122 @@ async def test_direct_working_paths(
         async with Ping(alpha_connection, beta.ip_addresses[0]).run() as ping:
             await testing.wait_long(ping.wait_for_next_ping())
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("setup_params, reflexive_ip", UHP_WORKING_PATHS)
+async def test_direct_working_paths_are_reestablished(
+    setup_params: List[SetupParameters],
+    reflexive_ip: str,
+) -> None:
+    async with AsyncExitStack() as exit_stack:
+        env = await setup_mesh_nodes(exit_stack, setup_params)
+        alpha, beta = env.nodes
+        alpha_client, beta_client = env.clients
+        alpha_connection, _ = [conn.connection for conn in env.connections]
+ 
+        await testing.wait_defined(
+            asyncio.gather(
+                alpha_client.wait_for_state_peer(
+                    beta.public_key,
+                    [State.Connected],
+                    [PathType.Direct],
+                ),
+                beta_client.wait_for_state_peer(
+                    alpha.public_key,
+                    [State.Connected],
+                    [PathType.Direct],
+                ),
+            ),
+            60,
+        )
+
+        async with Ping(alpha_connection, beta.ip_addresses[0]).run() as ping:
+            await testing.wait_long(ping.wait_for_next_ping())
+
+        # Break UHP
+        async with AsyncExitStack() as temp_exit_stack:
+            await temp_exit_stack.enter_async_context(
+                alpha_client.get_router().disable_path(reflexive_ip)
+            )
+
+            await testing.wait_defined(
+                asyncio.gather(
+                    alpha_client.wait_for_state_peer(
+                        beta.public_key,
+                        [State.Connected],
+                        [PathType.Relay],
+                    ),
+                    beta_client.wait_for_state_peer(
+                        alpha.public_key,
+                        [State.Connected],
+                        [PathType.Relay],
+                    ),
+                ),
+                60,
+            )
+
+            async with Ping(alpha_connection, beta.ip_addresses[0]).run() as ping:
+                await testing.wait_long(ping.wait_for_next_ping())
+
+        await testing.wait_defined(
+            asyncio.gather(
+                alpha_client.wait_for_state_peer(
+                    beta.public_key,
+                    [State.Connected],
+                    [PathType.Direct],
+                ),
+                beta_client.wait_for_state_peer(
+                    alpha.public_key,
+                    [State.Connected],
+                    [PathType.Direct],
+                ),
+            ),
+            60,
+        )
+        async with Ping(alpha_connection, beta.ip_addresses[0]).run() as ping:
+            await testing.wait_long(ping.wait_for_next_ping())
+
+        # Break UHP
+        async with AsyncExitStack() as temp_exit_stack:
+            await temp_exit_stack.enter_async_context(
+                alpha_client.get_router().disable_path(reflexive_ip)
+            )
+
+            await testing.wait_defined(
+                asyncio.gather(
+                    alpha_client.wait_for_state_peer(
+                        beta.public_key,
+                        [State.Connected],
+                        [PathType.Relay],
+                    ),
+                    beta_client.wait_for_state_peer(
+                        alpha.public_key,
+                        [State.Connected],
+                        [PathType.Relay],
+                    ),
+                ),
+                60,
+            )
+
+            async with Ping(alpha_connection, beta.ip_addresses[0]).run() as ping:
+                await testing.wait_long(ping.wait_for_next_ping())
+
+        await testing.wait_defined(
+            asyncio.gather(
+                alpha_client.wait_for_state_peer(
+                    beta.public_key,
+                    [State.Connected],
+                    [PathType.Direct],
+                ),
+                beta_client.wait_for_state_peer(
+                    alpha.public_key,
+                    [State.Connected],
+                    [PathType.Direct],
+                ),
+            ),
+            60,
+        )
+
+
 
 @pytest.mark.asyncio
 async def test_direct_working_paths_stun_ipv6() -> None:

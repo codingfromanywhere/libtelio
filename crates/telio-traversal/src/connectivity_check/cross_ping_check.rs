@@ -103,7 +103,6 @@ pub trait CrossPingCheckTrait: UpgradeController {
         &self,
         public_key: PublicKey,
     ) -> Result<(), Error>;
-    async fn session_for_key(&self, pk: PublicKey) -> Result<Option<Session>, Error>;
 }
 
 #[cfg(any(test, feature = "mockall"))]
@@ -120,7 +119,6 @@ mockall::mock! {
             &self,
             public_key: PublicKey,
         ) -> Result<(), Error>;
-        async fn session_for_key(&self, pk: PublicKey) -> Result<Option<Session>, Error>;
     }
 
     #[async_trait]
@@ -278,18 +276,21 @@ impl CrossPingCheckTrait for CrossPingCheck {
             task_exec!(&self.task, async move |s| {
                 // TODO: update logic to maintain all endpoints instead of last one
                 Ok(s.endpoint_connectivity_check_state
-                    .values()
-                    .filter_map(|v| match (v.state.clone(), v.last_validated_enpoint) {
-                        (PublishedByPublish(_), Some(ep)) => Some((
-                            v.public_key,
-                            WireGuardEndpointCandidateChangeEvent {
-                                public_key: v.public_key,
-                                remote_endpoint: ep,
-                                local_endpoint: v.local_endpoint_candidate.wg,
-                            },
-                        )),
-                        _ => None,
-                    })
+                    .iter()
+                    .filter_map(
+                        |(session, v)| match (v.state.clone(), v.last_validated_enpoint) {
+                            (PublishedByPublish(_), Some(ep)) => Some((
+                                v.public_key,
+                                WireGuardEndpointCandidateChangeEvent {
+                                    public_key: v.public_key,
+                                    remote_endpoint: ep,
+                                    local_endpoint: v.local_endpoint_candidate.wg,
+                                    session: *session,
+                                },
+                            )),
+                            _ => None,
+                        },
+                    )
                     .collect())
             })
             .await
@@ -326,12 +327,6 @@ impl CrossPingCheckTrait for CrossPingCheck {
         })
         .await;
         Ok(())
-    }
-
-    async fn session_for_key(&self, pk: PublicKey) -> Result<Option<Session>, Error> {
-        task_exec!(&self.task, async move |s| Ok(s.session_for_key(pk)))
-            .await
-            .map_err(|e| e.into())
     }
 }
 
@@ -395,6 +390,7 @@ impl<E: Backoff> State<E> {
         // Create sessions for all new nodes
         for added_node in added_nodes {
             for endpoint in endpoints.iter() {
+                let session_id = rand::random::<Session>();
                 let session = EndpointConnectivityCheckState {
                     public_key: added_node,
                     local_endpoint_candidate: endpoint.clone(),
@@ -403,8 +399,8 @@ impl<E: Backoff> State<E> {
                     last_validated_enpoint: None,
                     last_rx_time_provider: self.last_rx_time_provider.clone(),
                     exponential_backoff: (self.exponential_backoff_helper_provider)()?,
+                    local_session: session_id,
                 };
-                let session_id = rand::random::<Session>();
 
                 // Store freshly created connectivity check session
                 telio_log_debug!("New session created: {:?} -> {:?}", session_id, session);
@@ -456,16 +452,17 @@ impl<E: Backoff> State<E> {
         // Create new sessions for all added endpoints
         for added_endpoint in added_endpoints {
             for node in self.gather_all_nodes()? {
+                let session_id = rand::random::<Session>();
                 let session = EndpointConnectivityCheckState {
                     public_key: node,
                     local_endpoint_candidate: added_endpoint.clone(),
+                    local_session: session_id,
                     state: Machine::new(Disconnected).as_enum(),
                     last_state_transition: Instant::now(),
                     last_validated_enpoint: None,
                     last_rx_time_provider: self.last_rx_time_provider.clone(),
                     exponential_backoff: (self.exponential_backoff_helper_provider)()?,
                 };
-                let session_id = rand::random::<Session>();
 
                 // Store freshly created connectivity check session
                 telio_log_debug!("New session created: {:?} -> {:?}", session_id, session);
@@ -603,13 +600,6 @@ impl<E: Backoff> State<E> {
         Ok(())
     }
 
-    pub fn session_for_key(&self, pk: PublicKey) -> Option<Session> {
-        self.endpoint_connectivity_check_state
-            .iter()
-            .find(|(_, state)| state.public_key == pk)
-            .map(|(session, _)| *session)
-    }
-
     pub fn check_if_upgrade_is_allowed(&mut self, session: Session, public_key: PublicKey) -> bool {
         match self.session_id_candidates.remove(&session) {
             Some(pk) => pk == public_key,
@@ -736,6 +726,7 @@ impl<E: Backoff> Runtime for State<E> {
 pub struct EndpointConnectivityCheckState<E: Backoff> {
     public_key: PublicKey,
     local_endpoint_candidate: EndpointCandidate,
+    local_session: Session,
     state: EndpointState::Variant,
     last_state_transition: Instant,
     last_validated_enpoint: Option<SocketAddr>,
@@ -860,6 +851,7 @@ impl<E: Backoff> EndpointConnectivityCheckState<E> {
                             public_key: self.public_key,
                             remote_endpoint,
                             local_endpoint: self.local_endpoint_candidate.wg,
+                            session: self.local_session,
                         };
                         telio_log_info!("Publishing validated WG endpoint: {:?}", wg_publish_event);
                         wg_ep_publisher.send(wg_publish_event).await?;
@@ -1146,6 +1138,7 @@ mod tests {
                 wg: endpoint,
                 udp: endpoint,
             },
+            local_session: rand::random(),
             state,
             last_state_transition: Instant::now(),
             last_validated_enpoint: None,
