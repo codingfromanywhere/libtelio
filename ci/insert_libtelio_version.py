@@ -30,8 +30,9 @@ def insert_version_to_libtelio_binaries_in_dir(new_version: str, path: str):
                     path, VERSION_PLACEHOLDER, new_version
                 )
                 if target_os == "darwin":
-                    os.system(f"codesign --remove-signature {path}")
-                    os.system(f"codesign --sign - {path}")
+                    ret1 = os.system(f"codesign --remove-signature {path}")
+                    ret2 = os.system(f"codesign --sign - {path}")
+                    print(f"remove sig: {ret1}, sign: {ret2}")
         else:
             for dirname, _, filenames in os.walk(path):
                 for filename in filenames:
@@ -44,8 +45,9 @@ def insert_version_to_libtelio_binaries_in_dir(new_version: str, path: str):
                             binary, VERSION_PLACEHOLDER, new_version
                         )
                         if target_os == "darwin":
-                            os.system(f"codesign --remove-signature {binary}")
-                            os.system(f"codesign --sign - {binary}")
+                            ret1 = os.system(f"codesign --remove-signature {binary}")
+                            ret2 = os.system(f"codesign --sign - {binary}")
+                            print(f"remove sig: {ret1}, sign: {ret2}")
     if not is_valid_package:
         raise ValueError(f"Path {path} doesn't contain any libtelio packages")
 
