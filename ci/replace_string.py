@@ -24,12 +24,12 @@ def replace_string_in_file(file_path: str, original_str: str, new_str: str):
             raise ValueError("New string is longer than the original string")
 
         # If the new string is shorter than the original, fill with null terminators
-        null_terminators = ""
+        null_terminators = b""
         if len(new_str) < len(original_str):
-            null_terminators = "\0" * (len(original_str) - len(new_str))
+            null_terminators = b"\x00" * (len(original_str) - len(new_str))
 
         content = content.replace(
-            original_str.encode(), (new_str + null_terminators).encode()
+            original_str.encode(), new_str.encode() + null_terminators
         )
 
         # Move the file pointer to the beginning and write the modified content

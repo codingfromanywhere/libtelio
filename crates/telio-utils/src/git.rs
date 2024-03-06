@@ -8,5 +8,12 @@ pub fn commit_sha() -> &'static str {
 /// Will be replaced during build promotions
 #[inline(never)]
 pub fn version_tag() -> &'static str {
-    "VERSION_PLACEHOLDER@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
+    const VER: [u8;129] = *b"VERSION_PLACEHOLDER@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\0";
+    match VER.iter().position(|v| *v == 0) {
+        Some(i) => match std::str::from_utf8(&VER[..i]) {
+            Ok(s) => s,
+            Err(_) => "not_a_utf8_string",
+        },
+        None => "incorrect_version_string",
+    }
 }
