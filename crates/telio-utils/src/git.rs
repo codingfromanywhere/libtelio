@@ -10,7 +10,7 @@ pub fn commit_sha() -> &'static str {
 pub fn version_tag() -> &'static str {
     const VER: [u8;129] = *b"VERSION_PLACEHOLDER@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\0";
     match VER.iter().position(|v| *v == 0) {
-        Some(i) => match std::str::from_utf8(&VER[..i]) {
+        Some(i) => match std::str::from_utf8(&VER[0..i]) {
             Ok(s) => s,
             Err(_) => "not_a_utf8_string",
         },
