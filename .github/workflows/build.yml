@@ -34,7 +34,7 @@ jobs:
         run: python3 ci/build_libtelio.py build ${{ matrix.target_os }} ${{ matrix.arch }} --msvc
       - uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
         with:
-          name: libtelio-build-${{ matrix.target_os }}-${{ matrix.arch }}
+          name: libtelio-build-${{ matrix.target_os }}-${{ matrix.arch }}-with-replaced-version
           path: dist/
 
   build-docker:
