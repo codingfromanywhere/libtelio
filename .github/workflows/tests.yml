@@ -109,6 +109,10 @@ jobs:
           ./dist/darwin/macos/release/${{ matrix.arch }}/tcli
           echo "Build tag ${BUILD_TAG}"
           head -n 1 tcli.log | grep -a "${BUILD_TAG}"
+      - uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
+        with:
+          name: libtelio-build-macos-${{ matrix.arch }}
+          path: dist/
 
   test-build-version-replacement-windows:
     runs-on: windows-2022
@@ -125,17 +129,6 @@ jobs:
         run: python3 ci/build_libtelio.py build windows x86_64 --msvc
       - name: Replace and Test version
         run: |
-          set BRANCH=%GITHUB_REF_NAME%
-          if "%BRANCH%"=="" (
-              for /f "delims=" %%I in ('git rev-parse --abbrev-ref HEAD') do set "BRANCH=%%I"
-          )
-          set SHA=%GITHUB_SHA%
-          if "%SHA%"=="" (
-              for /f "delims=" %%I in ('git rev-parse HEAD') do set "SHA=%%I"
-          )
-          for /f "delims=" %%I in ('git show %SHA% -s --date=format:"%%Y%%m%%d/%%H%%M" --format=%%cd') do set "DATE=%%I"
-          set "BUILD_TAG=%BRANCH%+%DATE%+%SHA:~0,8%"
-          python ./ci/insert_libtelio_version.py -n %BUILD_TAG% -p ./dist/windows
+          python ./ci/insert_libtelio_version.py -n TEST -p ./dist/windows
           start /b "" ./dist/windows/release/x86_64/tcli
-          echo Build tag %BUILD_TAG%
-          type tcli.log | findstr /C:"%BUILD_TAG%"
+          type tcli.log | findstr /C:"TEST"
