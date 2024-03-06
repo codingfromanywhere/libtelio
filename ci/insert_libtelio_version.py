@@ -29,7 +29,7 @@ def insert_version_to_libtelio_binaries_in_dir(new_version: str, path: str):
                 replace_string.replace_string_in_file(
                     path, VERSION_PLACEHOLDER, new_version
                 )
-                if target_os == "darwin":
+                if target_os == "macos":
                     ret1 = os.system(f"codesign --remove-signature {path}")
                     ret2 = os.system(f"codesign --sign - {path}")
                     print(f"remove sig: {ret1}, sign: {ret2}")
@@ -44,7 +44,7 @@ def insert_version_to_libtelio_binaries_in_dir(new_version: str, path: str):
                         replace_string.replace_string_in_file(
                             binary, VERSION_PLACEHOLDER, new_version
                         )
-                        if target_os == "darwin":
+                        if target_os == "macos":
                             ret1 = os.system(f"codesign --remove-signature {binary}")
                             ret2 = os.system(f"codesign --sign - {binary}")
                             print(f"remove sig: {ret1}, sign: {ret2}")
