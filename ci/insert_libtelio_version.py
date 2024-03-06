@@ -4,8 +4,7 @@ import argparse
 import os
 import replace_string
 import sys
-from build_libtelio import LIBTELIO_CONFIG, PROJECT_CONFIG, PROJECT_ROOT
-from rust_build_utils.rust_utils_config import GLOBAL_CONFIG
+from build_libtelio import LIBTELIO_CONFIG
 
 VERSION_PLACEHOLDER = "VERSION_PLACEHOLDER@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
 
@@ -33,9 +32,7 @@ def insert_version_to_libtelio_binaries_in_dir(new_version: str, path: str):
 
 def main(args):
     try:
-        insert_version_to_libtelio_binaries_in_dir(
-            args.new_version[0 : len(VERSION_PLACEHOLDER)], args.path
-        )
+        insert_version_to_libtelio_binaries_in_dir(args.new_version, args.path)
         print("Insert successful!")
         return 0
     except ValueError as e:

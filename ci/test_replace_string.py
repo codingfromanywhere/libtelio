@@ -38,12 +38,8 @@ class TestReplaceStringInFile(unittest.TestCase):
         # Test when there are multiple original strings
         original_str = "original"
         new_str = "lanigiro"
-        replace_string_in_file(temp_file.name, original_str, new_str)
-
-        # Verify the contents of the file after replacement
-        with open(temp_file.name, "r", encoding="utf-8") as file:
-            content = file.read()
-            self.assertEqual(content, "lanigiro lanigiro lanigiro")
+        with self.assertRaises(ValueError):
+            replace_string_in_file(temp_file.name, original_str, new_str)
 
     def test_new_string_longer(self):
         # Create a temporary file

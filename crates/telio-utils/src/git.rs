@@ -6,6 +6,7 @@ pub fn commit_sha() -> &'static str {
 
 /// Get the version placeholder (half of the maximum length of git tag)
 /// Will be replaced during build promotions
+#[inline(never)]
 pub fn version_tag() -> &'static str {
     "VERSION_PLACEHOLDER@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
 }
