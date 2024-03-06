@@ -130,5 +130,5 @@ jobs:
       - name: Replace and Test version
         run: |
           python ./ci/insert_libtelio_version.py -n TEST -p ./dist/windows
-          start /b "" ./dist/windows/release/x86_64/tcli
+          start /b ./dist/windows/release/x86_64/tcli.exe
           type tcli.log | findstr /C:"TEST"
