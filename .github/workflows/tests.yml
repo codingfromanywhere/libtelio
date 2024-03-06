@@ -82,16 +82,23 @@ jobs:
           head -n 1 tcli.log | grep -a "${BUILD_TAG}"
 
   test-build-version-replacement-mac:
-    runs-on: macos-13
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-13
+          - arch: aarch64
+            runner: macos-14
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
         with:
           submodules: true
       - uses: Swatinem/rust-cache@b8a6852b4f997182bdea832df3f9e153038b5191 # v2.6.0
         with:
-          key: x86-macos
+          key: x86-${{ matrix.arch }}
       - name: Build libtelio
-        run: python3 ci/build_libtelio.py build macos x86_64
+        run: python3 ci/build_libtelio.py build macos ${{ matrix.arch }}
       - name: Replace and Test version
         run: |
           BRANCH=${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}
@@ -99,6 +106,36 @@ jobs:
           DATE=$(git show ${SHA} -s --date=format:'%Y%m%d/%H%M' --format=%cd)
           BUILD_TAG="${BRANCH}+${DATE}+${SHA:0:8}"
           ./ci/insert_libtelio_version.py -n ${BUILD_TAG} -p ./dist/darwin/macos
-          ./dist/darwin/macos/release/x86_64/tcli
+          ./dist/darwin/macos/release/${{ matrix.arch }}/tcli
           echo "Build tag ${BUILD_TAG}"
           head -n 1 tcli.log | grep -a "${BUILD_TAG}"
+
+  test-build-version-replacement-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        with:
+          submodules: true
+      - uses: Swatinem/rust-cache@b8a6852b4f997182bdea832df3f9e153038b5191 # v2.6.0
+        with:
+          key: x86-windows
+      - name: Setup MSVC
+        uses: egor-tensin/vs-shell@9a932a62d05192eae18ca370155cf877eecc2202 # v2.1
+      - name: Build libtelio
+        run: python3 ci/build_libtelio.py build windows x86_64 --msvc
+      - name: Replace and Test version
+        run: |
+          set BRANCH=%GITHUB_REF_NAME%
+          if "%BRANCH%"=="" (
+              for /f "delims=" %%I in ('git rev-parse --abbrev-ref HEAD') do set "BRANCH=%%I"
+          )
+          set SHA=%GITHUB_SHA%
+          if "%SHA%"=="" (
+              for /f "delims=" %%I in ('git rev-parse HEAD') do set "SHA=%%I"
+          )
+          for /f "delims=" %%I in ('git show %SHA% -s --date=format:"%%Y%%m%%d/%%H%%M" --format=%%cd') do set "DATE=%%I"
+          set "BUILD_TAG=%BRANCH%+%DATE%+%SHA:~0,8%"
+          python ./ci/insert_libtelio_version.py -n %BUILD_TAG% -p ./dist/windows
+          start /b "" ./dist/windows/release/x86_64/tcli
+          echo Build tag %BUILD_TAG%
+          type tcli.log | findstr /C:"%BUILD_TAG%"
