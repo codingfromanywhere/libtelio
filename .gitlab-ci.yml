@@ -15,5 +15,5 @@ libtelio-build-pipeline:
 
   trigger:
     project: $LIBTELIO_BUILD_PROJECT_PATH
-    branch: LLT-4937-trigger-android
+    branch: snapshot-android-builds
     strategy: depend
