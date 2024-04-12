@@ -218,35 +218,29 @@ def main() -> None:
     elif args.command == "aar":
         abu.generate_aar(PROJECT_CONFIG, args)
     elif args.command == "xcframework":
-        # TODO(Mathias): reenable when packaging solution is done
-        pass
-        #headers = {
-        #    Path("libtelio/module.modulemap"): PROJECT_CONFIG.get_root_dir()
-        #    / "contrib/darwin/module.modulemap",
-        #    Path("libtelio/telio.h"): PROJECT_CONFIG.get_root_dir()
-        #    / "ffi/bindings/telio.h",
-        #}
-        #dbu.create_xcframework(
-        #    PROJECT_CONFIG, args.debug, "libtelioFFI", headers, "libtelio.a"
-        #)
+        headers = {
+           Path("libtelio/module.modulemap"): PROJECT_CONFIG.get_root_dir()
+           / "dist/bindings/module.modulemap",
+           Path("libtelio/telio.h"): PROJECT_CONFIG.get_root_dir()
+           / "dist/bindings/telio.h",
+        }
+        dbu.create_xcframework(
+           PROJECT_CONFIG, args.debug, "libtelioFFI", headers, "libtelio.dylib"
+        )
     elif args.command == "build-ios-simulator-stubs":
-        # TODO(Mathias): reenable when packaging solution is done
-        pass
-        #dbu.build_stub_ios_simulator_libraries(
-        #    PROJECT_CONFIG,
-        #    args.debug,
-        #    args.header or PROJECT_CONFIG.get_root_dir() / "ffi/bindings/telio.h",
-        #    "libtelio.a",
-        #)
+        dbu.build_stub_ios_simulator_libraries(
+           PROJECT_CONFIG,
+           args.debug,
+           args.header or PROJECT_CONFIG.get_root_dir() / "ffi/bindings/telio.h",
+           "libtelio.a",
+        )
     elif args.command == "build-tvos-simulator-stubs":
-        # TODO(Mathias): reenable when packaging solution is done
-        pass
-        #dbu.build_stub_tvos_simulator_libraries(
-        #    PROJECT_CONFIG,
-        #    args.debug,
-        #    args.header or PROJECT_CONFIG.get_root_dir() / "ffi/bindings/telio.h",
-        #    "libtelio.a",
-        #)
+        dbu.build_stub_tvos_simulator_libraries(
+           PROJECT_CONFIG,
+           args.debug,
+           args.header or PROJECT_CONFIG.get_root_dir() / "ffi/bindings/telio.h",
+           "libtelio.a",
+        )
     else:
         assert False, f"command '{args.command}' not supported"
 
