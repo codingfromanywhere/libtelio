@@ -221,8 +221,8 @@ def main() -> None:
         headers = {
            Path("libtelio/module.modulemap"): PROJECT_CONFIG.get_root_dir()
            / "dist/bindings/module.modulemap",
-           Path("libtelio/telio.h"): PROJECT_CONFIG.get_root_dir()
-           / "dist/bindings/telio.h",
+           Path("libtelio/telioFFI.h"): PROJECT_CONFIG.get_root_dir()
+           / "dist/bindings/telioFFI.h",
         }
         dbu.create_xcframework(
            PROJECT_CONFIG, args.debug, "libtelioFFI", headers, "libtelio.dylib"
@@ -231,15 +231,15 @@ def main() -> None:
         dbu.build_stub_ios_simulator_libraries(
            PROJECT_CONFIG,
            args.debug,
-           args.header or PROJECT_CONFIG.get_root_dir() / "dist/bindings/telio.h",
-           "libtelio.dylib",
+           args.header or PROJECT_CONFIG.get_root_dir() / "dist/bindings/telioFFI.h",
+           "libtelio.a",
         )
     elif args.command == "build-tvos-simulator-stubs":
         dbu.build_stub_tvos_simulator_libraries(
            PROJECT_CONFIG,
            args.debug,
-           args.header or PROJECT_CONFIG.get_root_dir() / "dist/bindings/telio.h",
-           "libtelio.dylib",
+           args.header or PROJECT_CONFIG.get_root_dir() / "dist/bindings/telioFFI.h",
+           "libtelio.a",
         )
     else:
         assert False, f"command '{args.command}' not supported"
