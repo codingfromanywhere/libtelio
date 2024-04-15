@@ -232,14 +232,14 @@ def main() -> None:
            PROJECT_CONFIG,
            args.debug,
            args.header or PROJECT_CONFIG.get_root_dir() / "dist/bindings/telioFFI.h",
-           "libtelio.a",
+           "libtelio.dylib",
         )
     elif args.command == "build-tvos-simulator-stubs":
         dbu.build_stub_tvos_simulator_libraries(
            PROJECT_CONFIG,
            args.debug,
            args.header or PROJECT_CONFIG.get_root_dir() / "dist/bindings/telioFFI.h",
-           "libtelio.a",
+           "libtelio.dylib",
         )
     else:
         assert False, f"command '{args.command}' not supported"
