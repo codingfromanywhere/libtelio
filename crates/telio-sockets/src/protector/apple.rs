@@ -2,6 +2,11 @@ use debug_panic::debug_panic;
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 
+use std::cell::RefCell;
+use std::ffi::CStr;
+use std::ffi::{c_long, c_void};
+use std::rc::Rc;
+use std::sync::Once;
 use std::{
     io, os,
     sync::{Arc, Weak},
@@ -292,6 +297,8 @@ impl Sockets {
 
 #[allow(unreachable_code)]
 fn spawn_monitor(sockets: Arc<Mutex<Sockets>>) -> JoinHandle<io::Result<()>> {
+    NETWORK_PATH_MONITOR_START.call_once(setup_network_path_monitor);
+
     spawn_dynamic_store_loop(Arc::downgrade(&sockets));
     tokio::spawn(async move {
         loop {
@@ -335,26 +342,24 @@ fn get_primary_interface_names() -> Vec<String> {
                 .and_then(CFPropertyList::downcast_into::<CFDictionary>);
 
             if let Some(primary_service_dictionary) = primary_service_dictionary {
-                if primary_service_dictionary
-                    .find(unsafe { schema_definitions::kSCPropNetIPv4Router }.to_void())
-                    .is_some()
-                {
-                    let interface_name = primary_service_dictionary
-                        .find(unsafe { schema_definitions::kSCPropInterfaceName }.to_void())
-                        .map(|ptr| unsafe { CFString::wrap_under_get_rule(*ptr as CFStringRef) });
-                    if let Some(interface_name) = interface_name {
-                        primary_interface_names.push(interface_name.to_string());
-                    }
+                let interface_name = primary_service_dictionary
+                    .find(unsafe { schema_definitions::kSCPropInterfaceName }.to_void())
+                    .map(|ptr| unsafe { CFString::wrap_under_get_rule(*ptr as CFStringRef) });
+                if let Some(interface_name) = interface_name {
+                    primary_interface_names.push(interface_name.to_string());
                 }
             }
         }
     }
 
+    let mut names_in_order = INTERFACE_NAMES_IN_OS_PREFERENCE_ORDER.lock().clone();
     telio_log_info!(
-        "Discovered these primary interfaces for use in socket binding: {:?}",
+        "Discovered these primary IPv4 interfaces for use in socket binding: {:?} (OS pereference order: {names_in_order:?})",
         primary_interface_names
     );
-    primary_interface_names
+
+    names_in_order.retain(|name| primary_interface_names.contains(name));
+    names_in_order
 }
 
 fn get_primary_interface(tunnel_interface: u64) -> Option<u64> {
@@ -412,6 +417,68 @@ fn spawn_dynamic_store_loop(sockets: Weak<Mutex<Sockets>>) {
 
         core_foundation::runloop::CFRunLoop::run_current();
     });
+}
+
+use network_framework_sys::*;
+extern "C" {
+    pub fn nw_path_monitor_set_update_handler(
+        monitor: nw_path_monitor_t,
+        update_handler: *const c_void,
+    );
+    pub fn nw_path_enumerate_interfaces(path: nw_path_t, enumerate_block: *const c_void);
+}
+
+pub const DISPATCH_QUEUE_PRIORITY_HIGH: c_long = 2;
+pub const DISPATCH_QUEUE_PRIORITY_DEFAULT: c_long = 0;
+pub const DISPATCH_QUEUE_PRIORITY_LOW: c_long = -2;
+pub const DISPATCH_QUEUE_PRIORITY_BACKGROUND: c_long = -1 << 15;
+
+static NETWORK_PATH_MONITOR_START: Once = Once::new();
+static INTERFACE_NAMES_IN_OS_PREFERENCE_ORDER: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+fn setup_network_path_monitor() {
+    unsafe {
+        let cb = block::ConcreteBlock::new(|path: nw_path_t| {
+            let names = Rc::new(RefCell::new(vec![]));
+            let names_copy = names.clone();
+
+            let cb = block::ConcreteBlock::new(move |interface: nw_interface_t| -> bool {
+                let c_name = nw_interface_get_name(interface);
+                if !c_name.is_null() {
+                    let name = CStr::from_ptr(c_name);
+                    if let Ok(name) = name.to_str() {
+                        names_copy.borrow_mut().push(name.to_owned());
+                    }
+                }
+                true
+            })
+            .copy();
+
+            nw_path_enumerate_interfaces(path, &*cb as *const block::Block<_, _> as *const c_void);
+
+            *INTERFACE_NAMES_IN_OS_PREFERENCE_ORDER.lock() = names.borrow().clone();
+
+            println!(
+                "Names in order: {:?}",
+                INTERFACE_NAMES_IN_OS_PREFERENCE_ORDER.lock()
+            );
+        })
+        .copy();
+        let monitor = nw_path_monitor_create();
+        if monitor.is_null() {
+            println!("Failed to start network path monitor");
+            return;
+        }
+
+        let queue = dispatch::ffi::dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0);
+        nw_path_monitor_set_queue(monitor, std::mem::transmute(queue));
+
+        nw_path_monitor_set_update_handler(
+            monitor,
+            &*cb as *const block::Block<_, _> as *const c_void,
+        );
+        nw_path_monitor_start(monitor);
+    }
 }
 
 #[cfg(test)]
