@@ -6,7 +6,6 @@ use std::cell::RefCell;
 use std::ffi::CStr;
 use std::ffi::{c_long, c_void};
 use std::rc::Rc;
-use std::sync::Once;
 use std::{
     io, os,
     sync::{Arc, Weak},
@@ -297,8 +296,6 @@ impl Sockets {
 
 #[allow(unreachable_code)]
 fn spawn_monitor(sockets: Arc<Mutex<Sockets>>) -> JoinHandle<io::Result<()>> {
-    NETWORK_PATH_MONITOR_START.call_once(setup_network_path_monitor);
-
     spawn_dynamic_store_loop(Arc::downgrade(&sockets));
     tokio::spawn(async move {
         loop {
@@ -433,10 +430,9 @@ pub const DISPATCH_QUEUE_PRIORITY_DEFAULT: c_long = 0;
 pub const DISPATCH_QUEUE_PRIORITY_LOW: c_long = -2;
 pub const DISPATCH_QUEUE_PRIORITY_BACKGROUND: c_long = -1 << 15;
 
-static NETWORK_PATH_MONITOR_START: Once = Once::new();
 static INTERFACE_NAMES_IN_OS_PREFERENCE_ORDER: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-fn setup_network_path_monitor() {
+pub fn setup_network_path_monitor() {
     unsafe {
         let cb = block::ConcreteBlock::new(|path: nw_path_t| {
             let names = Rc::new(RefCell::new(vec![]));
@@ -458,8 +454,8 @@ fn setup_network_path_monitor() {
 
             *INTERFACE_NAMES_IN_OS_PREFERENCE_ORDER.lock() = names.borrow().clone();
 
-            println!(
-                "Names in order: {:?}",
+            telio_log_debug!(
+                "Names in os preference order: {:?}",
                 INTERFACE_NAMES_IN_OS_PREFERENCE_ORDER.lock()
             );
         })
