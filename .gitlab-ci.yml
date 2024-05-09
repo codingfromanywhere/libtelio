@@ -15,4 +15,4 @@ libtelio-build-pipeline:
 
   trigger:
     project: $LIBTELIO_BUILD_PROJECT_PATH
-    branch: v1.1.4
+    branch: LLT-4901_fetch_release_bins_from_nightly
