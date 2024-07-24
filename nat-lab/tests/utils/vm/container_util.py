@@ -2,6 +2,7 @@ from aiodocker import Docker
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from utils.connection import Connection, DockerConnection
+from utils.router.linux_router import INTERFACE_NAME
 
 
 async def _prepare(connection: Connection) -> None:
@@ -12,6 +13,12 @@ async def _prepare(connection: Connection) -> None:
     await connection.create_process(
         ["ip6tables-save", "-f", "ip6tables_backup"]
     ).execute()
+    try:
+        await connection.create_process(
+            ["ip", "link", "delete", INTERFACE_NAME]
+        ).execute()
+    except:
+        pass  # Most of the time there will be no interface to be deleted
 
 
 async def _reset(connection: Connection) -> None:
