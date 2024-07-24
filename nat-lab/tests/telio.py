@@ -640,6 +640,7 @@ class Client:
                         object_uri = f"PYRO:{object_name}@{host_ip}:{self._proxy_port}"
                     else:
                         object_uri = f"PYRO:{object_name}@localhost:{host_port}"
+                    print("XXXXX object_uri", object_uri)
 
                     try:
                         self._libtelio_proxy = LibtelioProxy(

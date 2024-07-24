@@ -3,9 +3,12 @@ import json
 import os
 import Pyro5.api  # type: ignore
 import Pyro5.server  # type: ignore
+import signal
 import sys
+import ctypes
 import telio_bindings as libtelio  # type: ignore # pylint: disable=import-error
 from typing import List
+from platform import system
 
 REMOTE_LOG = "remote.log"
 TCLI_LOG = "tcli.log"
@@ -194,6 +197,43 @@ def main():
         sys.stdout.flush()
 
         wrapper = LibtelioWrapper(daemon)
+        
+        def shutdown(sig, frame):
+            print(f"XXXXXXX handling {sig}")
+            sys.stdout.flush()
+            wrapper.shutdown()
+        
+        signal.signal(signal.SIGINT, shutdown)
+        print("XXXXXXXXX", system(), "pid", os.getpid())
+        sys.stdout.flush()
+        if system() == "Linux":
+            signal.signal(signal.SIGTERM, shutdown)        
+            signal.signal(signal.SIGHUP, shutdown)
+        if system() == "Windows":
+            # signal.signal(signal.CTRL_C_EVENT, shutdown)
+            # signal.signal(signal.CTRL_BREAK_EVENT, shutdown)
+            signal.signal(signal.SIGBREAK, shutdown)
+            from ctypes import wintypes, WINFUNCTYPE
+            HandlerRoutine = WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
+            SetConsoleCtrlHandler = ctypes.windll.kernel32.SetConsoleCtrlHandler
+            SetConsoleCtrlHandler.argtypes = (HandlerRoutine, wintypes.BOOL)
+            SetConsoleCtrlHandler.restype = wintypes.BOOL
+            
+            def _ctrl_handler(event):
+                print(f"XXXXX win event: {event}")
+                sys.stdout.flush()
+                if event == 2:  # CTRL_CLOSE_EVENT
+                    shutdown("Ctrl+close", None)
+                else:
+                    pass
+                    
+            ctrl_handler = HandlerRoutine(_ctrl_handler)
+            if not SetConsoleCtrlHandler(ctrl_handler, 1):
+                print("Failed to set console ctrl handler")
+            else:
+                print("XXX registered ctrl handler")
+
+        sys.stdout.flush()
         daemon.register(wrapper, objectId=object_name)
 
         daemon.requestLoop()

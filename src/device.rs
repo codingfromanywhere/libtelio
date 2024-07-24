@@ -519,6 +519,7 @@ impl Device {
     }
 
     pub fn stop(&mut self) {
+        telio_log_debug!("Stopping the device");
         if let Some(rt) = self.rt.take() {
             if let Some(art) = &self.async_runtime {
                 let _ = art.block_on(rt.stop());
