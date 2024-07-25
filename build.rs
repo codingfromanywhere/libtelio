@@ -16,7 +16,7 @@ fn build() -> Result<cc::Build> {
             match env::var("BYPASS_LLT_SECRETS") {
                 Ok(_) => println!("cargo:warning=BYPASS_LLT_SCAN IS SET, COMMIT CAREFULLY!!"),
                 Err(_) => {
-                    // panic!("Hooks not found, either run checkout scripts or run with BYPASS_LLT_SECRETS environment variable set");
+                    panic!("Hooks not found, either run checkout scripts or run with BYPASS_LLT_SECRETS environment variable set");
                 }
             }
         }

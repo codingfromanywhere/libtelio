@@ -155,7 +155,7 @@ async def _get_network_interface_tunnel_keys(connection):
 
     lines = result.get_stdout().splitlines()
     keys = []
-    for i in range(len(lines)):  # pylint: disable=C0200
-        if "WireGuard Tunnel" in lines[i]:
+    for i, line in enumerate(lines):
+        if "WireGuard Tunnel" in line or "Wintun Userspace Tunnel" in line:
             keys.append(lines[i - 1])
     return keys

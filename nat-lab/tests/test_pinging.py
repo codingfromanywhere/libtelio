@@ -102,7 +102,6 @@ async def get_in_node_tracker(
         )
     ],
 )
-# @pytest.mark.timeout(60)
 async def test_session_keeper(
     alpha_setup_params: SetupParameters,
     alpha_ip_stack: IPStack,

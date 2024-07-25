@@ -201,11 +201,14 @@ def get_uniffi_path(connection: Connection) -> str:
 
 @asynccontextmanager
 async def new_connection_raw(
-    tag: ConnectionTag, remove_existing_interfaces: bool = True,
+    tag: ConnectionTag,
+    remove_existing_interfaces: bool = True,
 ) -> AsyncIterator[Connection]:
     if tag in DOCKER_SERVICE_IDS:
         async with Docker() as docker:
-            async with container_util.get(docker, container_id(tag), remove_existing_interfaces) as connection:
+            async with container_util.get(
+                docker, container_id(tag), remove_existing_interfaces
+            ) as connection:
                 try:
                     yield connection
                 finally:

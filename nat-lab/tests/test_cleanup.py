@@ -8,7 +8,14 @@ from utils.vm.windows_vm_util import _get_network_interface_tunnel_keys
 
 @pytest.mark.asyncio
 @pytest.mark.windows
-async def test_get_network_interface_tunnel_keys() -> None:
+@pytest.mark.parametrize(
+    "adapter_type",
+    [
+        telio.AdapterType.WireguardGo,
+        telio.AdapterType.WindowsNativeWg,
+    ],
+)
+async def test_get_network_interface_tunnel_keys(adapter_type) -> None:
     async with AsyncExitStack() as exit_stack:
         env = await exit_stack.enter_async_context(
             setup_environment(
@@ -16,7 +23,7 @@ async def test_get_network_interface_tunnel_keys() -> None:
                 [
                     SetupParameters(
                         connection_tag=ConnectionTag.WINDOWS_VM_1,
-                        adapter_type=telio.AdapterType.WindowsNativeWg,
+                        adapter_type=adapter_type,
                     ),
                     SetupParameters(
                         connection_tag=ConnectionTag.DOCKER_CONE_CLIENT_2,
