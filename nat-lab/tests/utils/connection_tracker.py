@@ -2,6 +2,7 @@ import asyncio
 import platform
 import re
 import time
+from datetime import datetime
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Optional, List, Dict, AsyncIterator
@@ -45,6 +46,7 @@ class ConnectionTrackerConfig:
 
 
 def parse_input(input_string) -> FiveTuple:
+    print(f"{datetime.now()} WILL PARSE: '{input_string}'")
     five_tuple = FiveTuple()
 
     match = re.search(r"\[NEW\] (\w+)", input_string)

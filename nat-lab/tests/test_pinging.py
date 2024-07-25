@@ -39,7 +39,7 @@ async def get_in_node_tracker(
     exit_stack: AsyncExitStack, tag: ConnectionTag, conf: List[ConnectionTrackerConfig]
 ) -> Tuple[Connection, ConnectionTracker]:
     return await exit_stack.enter_async_context(
-        new_connection_with_node_tracker(tag, conf)
+        new_connection_with_node_tracker(tag, conf, remove_existing_interfaces=False)
     )
 
 
@@ -102,6 +102,7 @@ async def get_in_node_tracker(
         )
     ],
 )
+# @pytest.mark.timeout(60)
 async def test_session_keeper(
     alpha_setup_params: SetupParameters,
     alpha_ip_stack: IPStack,
