@@ -201,6 +201,7 @@ async def setup_environment(
     exit_stack: AsyncExitStack,
     instances: List[SetupParameters],
     provided_api: Optional[API] = None,
+    restart_nodes: bool = True,
 ) -> AsyncIterator[Environment]:
     """Sets up the basic environment based on the given parameters.
 
@@ -255,18 +256,19 @@ async def setup_environment(
     A new `Environment` instance with the given configuration
     """
 
-    services = []
-    for instance in instances:
-        tag = instance.connection_tag
-        if is_docker(tag):
-            services.append(DOCKER_SERVICE_IDS[tag])
-            if tag in DOCKER_GW_MAP:
-                services.append(DOCKER_SERVICE_IDS[DOCKER_GW_MAP[tag]])
-    if len(services) > 0:
-        print(datetime.now(), "Will restart containers:", services)
-        subprocess.check_call(["docker", "compose", "kill"] + services)
-        subprocess.check_call(["docker", "compose", "start"] + services)
-        print(datetime.now(), "Containers restart completed")
+    if restart_nodes:
+        services = []
+        for instance in instances:
+            tag = instance.connection_tag
+            if is_docker(tag):
+                services.append(DOCKER_SERVICE_IDS[tag])
+                if tag in DOCKER_GW_MAP:
+                    services.append(DOCKER_SERVICE_IDS[DOCKER_GW_MAP[tag]])
+        if len(services) > 0:
+            print(datetime.now(), "Will restart containers:", services)
+            subprocess.check_call(["docker", "compose", "kill"] + services)
+            subprocess.check_call(["docker", "compose", "start"] + services)
+            print(datetime.now(), "Containers restart completed")
 
     api, nodes = (
         (provided_api, list(provided_api.nodes.values()))
@@ -324,6 +326,7 @@ async def setup_mesh_nodes(
     instances: List[SetupParameters],
     is_timeout_expected: bool = False,
     provided_api: Optional[API] = None,
+    restart_nodes: bool = True,
 ) -> Environment:
     """The default way of setting up the test environment.
 
@@ -347,7 +350,7 @@ async def setup_mesh_nodes(
     """
 
     env = await exit_stack.enter_async_context(
-        setup_environment(exit_stack, instances, provided_api)
+        setup_environment(exit_stack, instances, provided_api, restart_nodes)
     )
 
     await asyncio.gather(*[

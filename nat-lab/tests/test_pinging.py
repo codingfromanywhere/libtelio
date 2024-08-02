@@ -138,7 +138,7 @@ async def test_session_keeper(
 
         # Startup meshnet
         env = await setup_mesh_nodes(
-            exit_stack, [alpha_setup_params, beta_setup_params]
+            exit_stack, [alpha_setup_params, beta_setup_params], restart_nodes=False
         )
 
         alpha, beta = env.nodes
@@ -258,7 +258,7 @@ async def test_qos(
         )
 
         env = await setup_mesh_nodes(
-            exit_stack, [alpha_setup_params, beta_setup_params]
+            exit_stack, [alpha_setup_params, beta_setup_params], restart_nodes=False
         )
 
         alpha, beta = env.nodes
