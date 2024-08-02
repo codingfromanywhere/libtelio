@@ -475,3 +475,11 @@ async def remove_traffic_control_rules(connection):
         ]).execute()
     except:
         pass
+
+
+def is_docker(tag: ConnectionTag) -> bool:
+    return not tag in [
+        ConnectionTag.WINDOWS_VM_1,
+        ConnectionTag.WINDOWS_VM_2,
+        ConnectionTag.MAC_VM,
+    ]

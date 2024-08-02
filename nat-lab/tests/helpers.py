@@ -1,5 +1,6 @@
 import asyncio
 import pytest
+import subprocess
 from config import WG_SERVERS
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
@@ -12,9 +13,12 @@ from typing import AsyncIterator, List, Tuple, Optional, Union, Dict, Any
 from utils.connection import Connection
 from utils.connection_tracker import ConnectionTrackerConfig
 from utils.connection_util import (
+    DOCKER_GW_MAP,
+    DOCKER_SERVICE_IDS,
     ConnectionManager,
     ConnectionTag,
     new_connection_manager_by_tag,
+    is_docker,
 )
 from utils.router import IPStack
 
@@ -250,6 +254,16 @@ async def setup_environment(
 
     A new `Environment` instance with the given configuration
     """
+
+    cmd = ["docker", "compose", "restart"]
+    for instance in instances:
+        tag = instance.connection_tag
+        if is_docker(tag):
+            cmd.append(DOCKER_SERVICE_IDS[tag])
+            if tag in DOCKER_GW_MAP:
+                cmd.append(DOCKER_SERVICE_IDS[DOCKER_GW_MAP[tag]])
+    if len(cmd) > 3:
+        subprocess.check_call(cmd)
 
     api, nodes = (
         (provided_api, list(provided_api.nodes.values()))
