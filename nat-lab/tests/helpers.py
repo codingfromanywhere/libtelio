@@ -255,15 +255,18 @@ async def setup_environment(
     A new `Environment` instance with the given configuration
     """
 
-    cmd = ["docker", "compose", "restart"]
+    services = []
     for instance in instances:
         tag = instance.connection_tag
         if is_docker(tag):
-            cmd.append(DOCKER_SERVICE_IDS[tag])
+            services.append(DOCKER_SERVICE_IDS[tag])
             if tag in DOCKER_GW_MAP:
-                cmd.append(DOCKER_SERVICE_IDS[DOCKER_GW_MAP[tag]])
-    if len(cmd) > 3:
-        subprocess.check_call(cmd)
+                services.append(DOCKER_SERVICE_IDS[DOCKER_GW_MAP[tag]])
+    if len(services) > 0:
+        print(datetime.now(), "Will restart containers:", services)
+        subprocess.check_call(["docker", "compose", "kill"] + services)
+        subprocess.check_call(["docker", "compose", "start"] + services)
+        print(datetime.now(), "Containers restart completed")
 
     api, nodes = (
         (provided_api, list(provided_api.nodes.values()))
