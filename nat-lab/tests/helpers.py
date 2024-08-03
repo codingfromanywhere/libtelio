@@ -18,9 +18,11 @@ from utils.connection_util import (
     ConnectionManager,
     ConnectionTag,
     new_connection_manager_by_tag,
+    container_id,
     is_docker,
 )
 from utils.router import IPStack
+from utils.vm.container_util import wait_for_docker
 
 
 @dataclass
@@ -258,16 +260,20 @@ async def setup_environment(
 
     if restart_nodes:
         services = []
+        names = []
         for instance in instances:
             tag = instance.connection_tag
             if is_docker(tag):
                 services.append(DOCKER_SERVICE_IDS[tag])
+                names.append(container_id(tag))
                 if tag in DOCKER_GW_MAP:
                     services.append(DOCKER_SERVICE_IDS[DOCKER_GW_MAP[tag]])
+                    names.append(container_id(DOCKER_GW_MAP[tag]))
         if len(services) > 0:
             print(datetime.now(), "Will restart containers:", services)
             subprocess.check_call(["docker", "compose", "kill"] + services)
             subprocess.check_call(["docker", "compose", "start"] + services)
+            await asyncio.gather(*[wait_for_docker(name) for name in names])
             print(datetime.now(), "Containers restart completed")
 
     api, nodes = (

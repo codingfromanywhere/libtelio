@@ -1,5 +1,7 @@
+import asyncio
 from aiodocker import Docker
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import AsyncIterator
 from utils.connection import Connection, DockerConnection
 from utils.router.linux_router import INTERFACE_NAME
@@ -42,3 +44,32 @@ async def get(docker: Docker, container_name: str) -> AsyncIterator[DockerConnec
         yield connection
     finally:
         await _reset(connection)
+
+
+class ContainerRestartError(Exception):
+    name: str
+    last_exception: Exception
+
+    def __init__(self, name, last_exception) -> None:
+        self.name = name
+        self.last_exception = last_exception
+
+
+async def wait_for_docker(container_name):
+    last_exception = None
+    print(datetime.now(), "Will wait for", container_name)
+    for _i in range(50):
+        async with Docker() as docker:
+            try:
+                connection = DockerConnection(
+                    await docker.containers.get(container_name), container_name
+                )
+                await connection.create_process(
+                    ["true"]
+                ).execute()  # Just a random command
+                print(datetime.now(), f"{container_name} is up and reachable")
+                return
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                last_exception = e
+                await asyncio.sleep(0.2)
+    raise ContainerRestartError(container_name, last_exception)
