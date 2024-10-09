@@ -9,7 +9,7 @@ use std::{
     str::FromStr,
 };
 use thiserror::Error as ThisError;
-use tokio::task::JoinError;
+use tokio::{sync::mpsc, task::JoinError, time::Duration};
 use tracing::{debug, error, info, level_filters::LevelFilter, trace, warn};
 
 mod comms;
@@ -19,16 +19,14 @@ use crate::comms::DaemonSocket;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::error::Error as SerdeJsonError;
 use std::cmp::min;
-use telio::crypto::{PublicKey, SecretKey};
-use telio::telio_model::config::Config as MeshMap;
 use telio::{
-    device::{Device, Error as DeviceError},
+    crypto::{PublicKey, SecretKey},
+    device::{Device, DeviceConfig, Error as DeviceError},
+    telio_model::config::Config as MeshMap,
     telio_model::features::Features,
     telio_utils::select,
+    telio_wg::AdapterType,
 };
-// Join this with above tokio
-use tokio::sync::mpsc;
-use tokio::time::Duration;
 
 use crate::core_api::{
     get_meshmap, load_identifier_from_api, register_machine, update_machine, Error as ApiError,
@@ -250,7 +248,7 @@ fn telio_task(
     mut rx_channel: mpsc::Receiver<TelioTaskCmd>,
 ) -> Result<(), TeliodError> {
     debug!("Initializing telio device");
-    let telio = Device::new(
+    let mut telio = Device::new(
         Features::default(),
         // TODO: replace this with some real event handling
         move |event| info!("Incoming event: {:?}", event),
@@ -262,6 +260,7 @@ fn telio_task(
     // right now as the values are dummy and program will not run as it expects
     // real tokens.
     if !client_config.auth_token.eq("") {
+        start_telio(&mut telio, client_config.private_key)?;
         if let Err(e) = update_meshmap(&client_config, &telio) {
             error!("Unable to set meshmap due to {e}");
         }
@@ -284,6 +283,26 @@ fn update_meshmap(client_config: &ClientConfig, telio: &Device) -> Result<(), Te
     let meshmap: MeshMap = serde_json::from_str(&get_meshmap(client_config)?)?;
     trace!("Meshmap {:#?}", meshmap);
     telio.set_config(&Some(meshmap))?;
+    Ok(())
+}
+
+fn start_telio(telio: &mut Device, private_key: SecretKey) -> Result<(), DeviceError> {
+    if !telio.is_running() {
+        let device_config = DeviceConfig {
+            private_key,
+            name: Some("utun10".to_owned()),
+            adapter: AdapterType::BoringTun,
+            ..Default::default()
+        };
+
+        telio.start(&device_config)?;
+
+        info!(
+            "started telio with {:?}:{}...",
+            AdapterType::BoringTun,
+            private_key
+        );
+    }
     Ok(())
 }
 
